@@ -1,0 +1,101 @@
+global_settings : 
+    data_path : "${hydra:runtime.cwd}/data/img_align_celeba"
+    attr_path : ${hydra:runtime.cwd}/data/list_attr_celeba.txt
+    result_path : "${hydra:runtime.cwd}/result"
+    gpu : 1
+    mode : valid
+    image_size : 256
+    universal_perturbation_path : "${hydra:runtime.cwd}/perturbation.pt"
+    demo_result : "${hydra:runtime.cwd}/demo_result"
+    demo_images : "${hydra:runtime.cwd}/demo/test2.jpg"
+    demo_image_id : "${hydra:runtime.cwd}/demo/image_id.jpg"
+    demo_image_att : "${hydra:runtime.cwd}/demo/image_att.jpg"
+    
+fake_model_para: 
+    lr : 0.01
+
+
+stargan :
+    c_dim : 5
+    c2_dim : 8
+    celeba_crop_size  : 178
+    rafd_crop_size : 256
+    image_size : 256
+    g_conv_dim : 64
+    d_conv_dim : 64
+    g_repeat_num : 6
+    d_repeat_num : 6
+    lambda_cls : 1
+    lambda_rec : 10
+    lambda_gp : 10
+    resume_iters : ""
+
+    dataset : CelebA
+    batch_size : 1
+    num_iters : 200000
+    num_iters_decay : 100000
+    g_lr : 0.0001
+    d_lr : 0.0001
+    n_critic : 5
+    beta1 : 0.5
+    beta2 : 0.999
+    selected_attrs : [Black_Hair, Blond_Hair, Brown_Hair, Male, Young]
+
+    test_iters : 200000
+
+    num_workers : 1
+    mode : test
+    use_tensorboard : 0
+    model_save_dir : "${hydra:runtime.cwd}/stargan/stargan_celeba_256/models"
+    result_dir : "${hydra:runtime.cwd}/stargan/stargan_celeba_256/results_test"
+    log_step : 10
+    sample_step : 1000
+    model_save_step : 5000
+    lr_update_step : 1000
+
+    data_path : "${hydra:runtime.cwd}/data/img_align_celeba"
+    attr_path : "${hydra:runtime.cwd}/data/list_attr_celeba.txt"
+    img_size : 256
+    num_test : 10
+    gpu : 1
+    universal : 1
+    log_dir : "${hydra:runtime.cwd}/stargan/stargan/logs"
+    sample_dir : "${hydra:runtime.cwd}/stargan/stargan/samples"
+
+attgan:
+    selected_attrs : [Black_Hair, Blond_Hair, Brown_Hair, Male, Young]
+
+
+
+simswap:
+    data:
+        id_image: "${hydra:runtime.cwd}/simswap/demo_file/Iron_man.jpg"
+        att_image: "${hydra:runtime.cwd}/simswap/demo_file/multi_people.jpg"
+        specific_id_image: "none"
+        att_video: "none"
+        output_dir: ${hydra:runtime.cwd}/output
+
+    pipeline:
+        face_detector_weights: "${hydra:runtime.cwd}/simswap/weights/antelope/scrfd_10g_bnkps.onnx"
+        face_id_weights: "${hydra:runtime.cwd}/simswap/weights/arcface_model/arcface_net.jit"
+        parsing_model_weights: "${hydra:runtime.cwd}/simswap/weights/parsing_model/79999_iter.pth"
+        simswap_weights: "${hydra:runtime.cwd}/simswap/weights/simswap_224/latest_net_G.pth"
+        device: "cuda"
+        crop_size: 256
+        # it seems that the official 224 checkpoint works better with 'none' face alignment type
+        checkpoint_type: "official_224" #"none"
+        face_alignment_type: "none" #"ffhq"
+        erode_mask_value: 40
+        smooth_mask_value: 41
+        face_detector_threshold: 0.6
+        specific_latent_match_threshold: 0.05
+
+    defaults:
+        - _self_
+        - override hydra/hydra_logging: disabled
+        - override hydra/job_logging: disabled
+
+    hydra:
+        output_subdir: null
+        run:
+            dir: .

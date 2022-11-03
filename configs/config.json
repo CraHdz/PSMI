@@ -1,0 +1,64 @@
+{
+    "attgan": {
+        "selected_attrs": [
+            "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young"
+        ]
+    },
+    "fake_model_para": {
+        "lr": 0.01
+    },
+    "global_settings": {
+        "attr_path": "./data/list_attr_celeba.txt",
+        "data_path": "./data/img_align_celeba",
+        "gpu": 1,
+        "mode": "valid",
+        "result_path": "./result",
+        "image_size":256,
+        "universal_perturbation_path":"./perturbation.pt"
+    },
+    "stargan": {
+        "attr_path": "./data/list_attr_celeba.txt",
+        "batch_size": 1,
+        "beta1": 0.5,
+        "beta2": 0.999,
+        "c2_dim": 8,
+        "c_dim": 5,
+        "celeba_crop_size": 178,
+        "d_conv_dim": 64,
+        "d_lr": 0.0001,
+        "d_repeat_num": 6,
+        "data_path": "./data/img_align_celeba",
+        "dataset": "CelebA",
+        "g_conv_dim": 64,
+        "g_lr": 0.0001,
+        "g_repeat_num": 6,
+        "gpu": 1,
+        "image_size": 256,
+        "img_size": 256,
+        "lambda_cls": 1,
+        "lambda_gp": 10,
+        "lambda_rec": 10,
+        "log_dir": "./stargan/stargan/logs",
+        "log_step": 10,
+        "lr_update_step": 1000,
+        "mode": "test",
+        "model_save_dir": "./stargan/stargan_celeba_256/models",
+        "model_save_step": 5000,
+        "n_critic": 5,
+        "num_iters": 200000,
+        "num_iters_decay": 100000,
+        "num_test": 10,
+        "num_workers": 1,
+        "rafd_crop_size": 256,
+        "result_dir": "./stargan/stargan_celeba_256/results_test",
+        "resume_iters": "",
+        "sample_dir": "./stargan/stargan/samples",
+        "sample_step": 1000,
+        "selected_attrs": [
+            "Black_Hair", "Blond_Hair", "Brown_Hair", "Male", "Young"
+        ],
+        "test_iters": 200000,
+        "universal": 1,
+        "use_tensorboard": 0
+    }
+}
