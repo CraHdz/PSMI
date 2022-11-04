@@ -11,7 +11,7 @@ global_settings :
     demo_image_id : "${hydra:runtime.cwd}/demo/image_id.jpg"
     demo_image_att : "${hydra:runtime.cwd}/demo/image_att.jpg"
     att_image_path: "${hydra:runtime.cwd}/demo/image_att_train.jpg"
-    batch_size : 20
+    batch_size : 5
     epoch : 100 
 
 fake_model_para: 
@@ -68,10 +68,14 @@ stargan :
 attgan:
     selected_attrs : [Black_Hair, Blond_Hair, Brown_Hair, Male, Young]
 
-generator:
+pertgenerator:
     checkpoint_path : "${hydra:runtime.cwd}/core/checkpoint"
-    pretain_state_dict_path : "${hydra:runtime.cwd}/weight"
-
+    pretain_model_path : "${hydra:runtime.cwd}/weight"
+    save_model_path : "${hydra:runtime.cwd}/weight"
+    mode : tain
+    is_load_checkpoint : false
+    inception : false
+    epsilon : 0.03
 
 simswap:
     data:

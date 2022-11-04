@@ -367,46 +367,50 @@ class PerbApplication:
                 perturbs = self.per_gen_net(imgs)
 
                 x_noattack_list_stargan, x_attack_list_stargan = self.face_edit_attck(imgs, c_org, perturbs)
-
+                x_noattack_list_stargan = torch.stack(
+                    x_noattack_list_stargan, dim = 0
+                )
+                x_attack_list_stargan = torch.stack(
+                    x_attack_list_stargan, dim=0
+                )
                 x_noattack_list_simswap, x_attack_list_simswap = self.face_swap_attack(imgs, perturbs)
 
-                x_total_list_stargan = [imgs, imgs + perturbs]
-                for j in range(len(x_noattack_list_stargan)):
-                    gen_noattack = x_noattack_list_stargan[j]
-                    gen = x_noattack_list_stargan[j]
+                # x_total_list_stargan = [imgs, imgs + perturbs]
+                # for j in range(len(x_noattack_list_stargan)):
+                #     gen_noattack = x_noattack_list_stargan[j]
+                #     gen = x_noattack_list_stargan[j]
 
-                    x_total_list_stargan.append(x_noattack_list_stargan[j])
-                    x_total_list_stargan.append(x_attack_list_stargan[j])
+                #     x_total_list_stargan.append(x_noattack_list_stargan[j])
+                #     x_total_list_stargan.append(x_attack_list_stargan[j])
 
-                    l1_error += F.l1_loss(gen, gen_noattack)
-                    l2_error += F.mse_loss(gen, gen_noattack)
-                    l0_error += (gen - gen_noattack).norm(0)
-                    min_dist += (gen - gen_noattack).norm(float('-inf'))
-                    if F.mse_loss(gen, gen_noattack) > 0.05:
-                        n_dist += 1
-                    n_samples += 1
+                #     l1_error += F.l1_loss(gen, gen_noattack)
+                #     l2_error += F.mse_loss(gen, gen_noattack)
+                #     l0_error += (gen - gen_noattack).norm(0)
+                #     min_dist += (gen - gen_noattack).norm(float('-inf'))
+                #     if F.mse_loss(gen, gen_noattack) > 0.05:
+                #         n_dist += 1
+                #     n_samples += 1
                 
-                # x_total_list_simswap = [imgs, imgs + perturbs]
-                x_total_list_simswap = []
-                for j in range(len(x_noattack_list_simswap)):
-                    gen_noattack = x_noattack_list_simswap[j]
-                    gen = x_noattack_list_stargan[j]
+                # # x_total_list_simswap = [imgs, imgs + perturbs]
+                # x_total_list_simswap = []
+                # for j in range(len(x_noattack_list_simswap)):
+                #     gen_noattack = x_noattack_list_simswap[j]
+                #     gen = x_noattack_list_stargan[j]
 
-                    x_total_list_simswap.append(x_noattack_list_simswap[j])
-                    x_total_list_simswap.append(x_attack_list_simswap[j])
+                #     x_total_list_simswap.append(x_noattack_list_simswap[j])
+                #     x_total_list_simswap.append(x_attack_list_simswap[j])
 
 
-                    l1_error += F.l1_loss(gen, gen_noattack)
-                    l2_error += F.mse_loss(gen, gen_noattack)
-                    l0_error += (gen - gen_noattack).norm(0)
-                    min_dist += (gen - gen_noattack).norm(float('-inf'))
-                    if F.mse_loss(gen, gen_noattack) > 0.05:
-                        n_dist += 1
-                    n_samples += 1
+                #     l1_error += F.l1_loss(gen, gen_noattack)
+                #     l2_error += F.mse_loss(gen, gen_noattack)
+                #     l0_error += (gen - gen_noattack).norm(0)
+                #     min_dist += (gen - gen_noattack).norm(float('-inf'))
+                #     if F.mse_loss(gen, gen_noattack) > 0.05:
+                #         n_dist += 1
+                #     n_samples += 1
 
                 optimizer.zero_grad()
-                loss = loss_fn()
-
+                loss = loss_fn(x_noattack_list_stargan, x_attack_list_stargan) + loss_fn(x_noattack_list_simswap, x_attack_list_simswap)
 
                 loss.backward()
                 optimizer.step()

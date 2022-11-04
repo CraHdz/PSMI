@@ -1,5 +1,5 @@
 from os.path import join
-from core.perb_generator import Generator
+from core.pert_generator import PertGenerator
 
 from data import CelebA
 import simswap
@@ -76,7 +76,7 @@ def prepare(config):
     
     print ("current mode is:" + global_settings.mode)
 
-    pert_gen_net = Generator()
+    pert_gen_net = PertGenerator(config.pertgenerator)
 
     # attgan, attgan_args = init_attGAN(args_attack)
     # attack_dataloader = init_attack_data(args_attack, attgan_args)
