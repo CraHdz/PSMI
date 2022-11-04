@@ -18,7 +18,7 @@ import attacks
 import kornia
 from simswap.src.FaceAlign.face_align import align_face, inverse_transform_batch
 from util import tensor2img
-from core.perb_generator import Generator
+from core.pert_generator import PertGenerator
 from core.img_pert_weight import img_per_weight
 from torch import nn
 from util import to_tensor, to_tensor_norm, img_read, img_save, img_save_np

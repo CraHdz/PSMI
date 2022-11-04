@@ -11,7 +11,7 @@ global_settings :
     demo_image_id : "${hydra:runtime.cwd}/demo/image_id.jpg"
     demo_image_att : "${hydra:runtime.cwd}/demo/image_att.jpg"
     att_image_path: "${hydra:runtime.cwd}/demo/image_att_train.jpg"
-    batch_size : 5
+    batch_size : 20
     epoch : 100 
 
 fake_model_para: 
