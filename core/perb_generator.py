@@ -10,10 +10,11 @@ import numpy as np
 ngf = 64
 
 class Generator(nn.Module):
-    def __init__(self, inception = False):
+    def __init__(self, epsilon = 0.03, inception = False,):
         super(Generator, self).__init__()
 
         self.inception = inception
+        self.epsilon = epsilon
         self.block1 = nn.Sequential(
             nn.ReflectionPad2d(3),
             nn.Conv2d(3, ngf, kernel_size=7, padding=0, bias=False),
@@ -36,9 +37,10 @@ class Generator(nn.Module):
         )
 
         # Input size = 3, n/4, n/4
-        # Residual Blocks: 6
-        self.resblock = nn.ModuleList(
-            [ResidualBlock(ngf * 4) for i in range(6)]
+        # Residual Blocks: 7
+        residual_blocks = [ResidualBlock(ngf * 4) for i in range(7)]
+        self.resblock = nn.Sequential(
+            *residual_blocks
         )
 
         # Input size = 3, n/4, n/4
@@ -73,7 +75,12 @@ class Generator(nn.Module):
         x = self.blockf(x)
         if self.inception:
             x = self.crop(x)
-        return (torch.tanh(x) + 1) / 2 # Output range [0 1]
+        #perbtution limit [0, 1]
+        x = torch.clamp(torch.tanh(x), min=-self.epsilon, max=self.epsilon)
+        return x
+
+    def load_pretain_model(model_path):
+        pass
 
     
 

@@ -57,7 +57,7 @@ class CelebA(data.Dataset):
             self.attr2idx[attr_name] = i
             self.idx2attr[i] = attr_name
         if self.mode == 'train':
-            lines = lines[:182000]
+            lines = lines[2:182000]
         if self.mode == 'valid':
             lines = lines[182000:182637]
         if self.mode == 'test':

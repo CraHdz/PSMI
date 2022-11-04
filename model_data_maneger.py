@@ -9,7 +9,8 @@ import argparse
 import yaml
 import json
 from simswap.src.simswap import SimSwap 
-
+from util import img_read, to_tensor
+import cv2
 # config = None
 #获取配置文件
 
@@ -59,6 +60,13 @@ def get_dataloader(data_path, attr_path, img_size, mode, attrs, selected_attrs, 
     #     print('Testing images:', min(len(test_dataset), args_attack. global_settings.num_test))
     return data_loader
 
+def get_att_image(img_path, crop_size):
+    att_image  = img_read(img_path)
+    cv2.resize(att_image, (crop_size, crop_size))
+    att_image = to_tensor()(att_image).unsqueeze(0)
+    return att_image 
+
+
 def prepare(config):
     # prepare deepfake models
     # config = getconfig()
@@ -80,12 +88,14 @@ def prepare(config):
     if ( global_settings.mode == "train" or global_settings.mode == "test"):
         batch_size =  global_settings.batch_size
 
-    data_loader = get_dataloader( global_settings.data_path,  global_settings.attr_path,  global_settings.image_size,  global_settings.mode,  config.attgan.selected_attrs,  config.stargan.selected_attrs, batch_size)
+    data_loader = get_dataloader(global_settings.data_path, global_settings.attr_path, 
+        global_settings.image_size, global_settings.mode, config.attgan.selected_attrs,  config.stargan.selected_attrs, batch_size)
     stargan = init_stargan(config.stargan, data_loader)
     stargan.restore_model(stargan.test_iters)
 
     simswap = init_simSwap(config.simswap)
+    att_image = get_att_image(global_settings.att_image_path, global_settings.image_size)
     #inin perturbation generation network
     # transform, F, T, G, E, reference, gen_models = prepare_HiSD()
     print("Finished deepfake models initialization!")
-    return data_loader, stargan, pert_gen_net, simswap
+    return data_loader, stargan, pert_gen_net, simswap, att_image

@@ -64,7 +64,6 @@ class Generator(nn.Module):
         c = c.view(c.size(0), c.size(1), 1, 1)
         c = c.repeat(1, 1, x.size(2), x.size(3))
         x = torch.cat([x, c], dim=1)
-        print (x.shape)
         feature_maps = []
 
         # Get intermediate feature maps

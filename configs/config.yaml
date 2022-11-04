@@ -3,14 +3,17 @@ global_settings :
     attr_path : ${hydra:runtime.cwd}/data/list_attr_celeba.txt
     result_path : "${hydra:runtime.cwd}/result"
     gpu : 1
-    mode : valid
+    mode : train
     image_size : 256
     universal_perturbation_path : "${hydra:runtime.cwd}/perturbation.pt"
     demo_result : "${hydra:runtime.cwd}/demo_result"
     demo_images : "${hydra:runtime.cwd}/demo/test2.jpg"
     demo_image_id : "${hydra:runtime.cwd}/demo/image_id.jpg"
     demo_image_att : "${hydra:runtime.cwd}/demo/image_att.jpg"
-    
+    att_image_path: "${hydra:runtime.cwd}/demo/image_att_train.jpg"
+    batch_size : 20
+    epoch : 100 
+
 fake_model_para: 
     lr : 0.01
 
@@ -65,6 +68,9 @@ stargan :
 attgan:
     selected_attrs : [Black_Hair, Blond_Hair, Brown_Hair, Male, Young]
 
+generator:
+    checkpoint_path : "${hydra:runtime.cwd}/core/checkpoint"
+    pretain_state_dict_path : "${hydra:runtime.cwd}/weight"
 
 
 simswap:
