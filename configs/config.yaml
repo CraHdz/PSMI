@@ -1,18 +1,24 @@
 global_settings : 
-    data_path : "${hydra:runtime.cwd}/data/img_align_celeba"
-    attr_path : ${hydra:runtime.cwd}/data/list_attr_celeba.txt
-    result_path : "${hydra:runtime.cwd}/result"
+    data_path : "./data/img_align_celeba"
+    attr_path : ./data/list_attr_celeba.txt
+    result_path : "./result"
     gpu : 1
-    mode : train
+    mode : test
     image_size : 256
-    universal_perturbation_path : "${hydra:runtime.cwd}/perturbation.pt"
-    demo_result : "${hydra:runtime.cwd}/demo_result"
-    demo_images : "${hydra:runtime.cwd}/demo/test2.jpg"
-    demo_image_id : "${hydra:runtime.cwd}/demo/image_id.jpg"
-    demo_image_att : "${hydra:runtime.cwd}/demo/image_att.jpg"
-    att_image_path: "${hydra:runtime.cwd}/demo/image_att_train.jpg"
-    batch_size : 20
-    epoch : 100 
+    universal_perturbation_path : "./perturbation.pt"
+    demo_result : "./demo_result"
+    demo_images : "./demo/test2.jpg"
+    demo_image_id : "./demo/image_id.jpg"
+    demo_image_att : "./demo/image_att.jpg"
+    att_image_path: "./demo/image_att_train.jpg"
+    batch_size : 10
+    epochs : 100 
+    checkpoint_path: "./checkpoint"
+    device_ids : [0, 1]
+    model_path : "./weights/pert_generator/generator.pth"
+    log_dir : "./log/log_files"
+    device : "cuda"
+    is_dataParallel : true
 
 fake_model_para: 
     lr : 0.01
@@ -49,47 +55,43 @@ stargan :
     num_workers : 1
     mode : test
     use_tensorboard : 0
-    model_save_dir : "${hydra:runtime.cwd}/stargan/stargan_celeba_256/models"
-    result_dir : "${hydra:runtime.cwd}/stargan/stargan_celeba_256/results_test"
+    model_save_dir : "./stargan/stargan_celeba_256/models"
+    result_dir : "./stargan/stargan_celeba_256/results_test"
     log_step : 10
     sample_step : 1000
     model_save_step : 5000
     lr_update_step : 1000
 
-    data_path : "${hydra:runtime.cwd}/data/img_align_celeba"
-    attr_path : "${hydra:runtime.cwd}/data/list_attr_celeba.txt"
+    data_path : "./data/img_align_celeba"
+    attr_path : "./data/list_attr_celeba.txt"
     img_size : 256
     num_test : 10
     gpu : 1
     universal : 1
-    log_dir : "${hydra:runtime.cwd}/stargan/stargan/logs"
-    sample_dir : "${hydra:runtime.cwd}/stargan/stargan/samples"
+    log_dir : "./stargan/stargan/logs"
+    sample_dir : "./stargan/stargan/samples"
 
 attgan:
     selected_attrs : [Black_Hair, Blond_Hair, Brown_Hair, Male, Young]
 
 pertgenerator:
-    checkpoint_path : "${hydra:runtime.cwd}/core/checkpoint"
-    pretain_model_path : "${hydra:runtime.cwd}/weight"
-    save_model_path : "${hydra:runtime.cwd}/weight"
     mode : tain
-    is_load_checkpoint : false
     inception : false
     epsilon : 0.03
 
 simswap:
     data:
-        id_image: "${hydra:runtime.cwd}/simswap/demo_file/Iron_man.jpg"
-        att_image: "${hydra:runtime.cwd}/simswap/demo_file/multi_people.jpg"
+        id_image: "./simswap/demo_file/Iron_man.jpg"
+        att_image: "./simswap/demo_file/multi_people.jpg"
         specific_id_image: "none"
         att_video: "none"
-        output_dir: ${hydra:runtime.cwd}/output
+        output_dir: ./output
 
     pipeline:
-        face_detector_weights: "${hydra:runtime.cwd}/simswap/weights/antelope/scrfd_10g_bnkps.onnx"
-        face_id_weights: "${hydra:runtime.cwd}/simswap/weights/arcface_model/arcface_net.jit"
-        parsing_model_weights: "${hydra:runtime.cwd}/simswap/weights/parsing_model/79999_iter.pth"
-        simswap_weights: "${hydra:runtime.cwd}/simswap/weights/simswap_224/latest_net_G.pth"
+        face_detector_weights: "./simswap/weights/antelope/scrfd_10g_bnkps.onnx"
+        face_id_weights: "./simswap/weights/arcface_model/arcface_net.jit"
+        parsing_model_weights: "./simswap/weights/parsing_model/79999_iter.pth"
+        simswap_weights: "./simswap/weights/simswap_224/latest_net_G.pth"
         device: "cuda"
         crop_size: 256
         # it seems that the official 224 checkpoint works better with 'none' face alignment type

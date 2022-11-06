@@ -2,8 +2,11 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-def img_per_weight(img, kernel_size, device):
-    img = img.clone().detach_().cuda()
+def img_per_weight(img, kernel_size, device=None):
+    if device is not None:
+        img = img.clone().detach_().to(device)
+    else:
+        img = img.clone().detach_()
     with torch.no_grad():
         img_b, img_c, img_h, img_w = img.shape
 
@@ -32,7 +35,7 @@ def img_per_weight(img, kernel_size, device):
 
 
 if __name__ == "__main__":
-    x = torch.arange(0, 1*3*5*5).float()
-    x = x.view(1,3,5,5)
+    x = torch.arange(0, 2*3*4*4).float()
+    x = x.view(2,3,4,4)
     result = img_per_weight(x, 3)
     print(result)

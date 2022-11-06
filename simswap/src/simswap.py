@@ -60,15 +60,16 @@ class SimSwap:
         # For SimSwap models trained with the updated code
         self.to_tensor = transforms.ToTensor()
 
-        self.face_detector = get_model(
-            "face_detector",
-            device=self.device,
-            load_state_dice=False,
-            model_path=Path(config.face_detector_weights),
-            det_thresh=self.face_detector_threshold,
-            det_size=(640, 640),
-            mode="ffhq",
-        )
+        # self.face_detector = get_model(
+        #     "face_detector",
+        #     device=self.device,
+        #     load_state_dice=False,
+        #     model_path=Path(config.face_detector_weights),
+        #     det_thresh=self.face_detector_threshold,
+        #     det_size=(640, 640),
+        #     mode="ffhq",
+        # )
+        self.face_detector = None
 
         self.face_id_net = get_model(
             "arcface",
@@ -77,13 +78,14 @@ class SimSwap:
             model_path=Path(config.face_id_weights),
         )
 
-        self.bise_net = get_model(
-            "parsing_model",
-            device=self.device,
-            load_state_dice=True,
-            model_path=Path(config.parsing_model_weights),
-            n_classes=19,
-        )
+        # self.bise_net = get_model(
+        #     "parsing_model",
+        #     device=self.device,
+        #     load_state_dice=True,
+        #     model_path=Path(config.parsing_model_weights),
+        #     n_classes=19,
+        # )
+        self.bise_net = None
 
         gen_model = "generator_512" if self.crop_size == 512 else "generator_224"
         self.simswap_net = get_model(

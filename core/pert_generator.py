@@ -16,11 +16,6 @@ class PertGenerator(nn.Module):
         self.inception = config.inception
         self.epsilon = config.epsilon
 
-        self.model_load_path = config.pretain_model_path
-        self.model_save_path = config.save_model_path
-
-        self.checkpoint = config.checkpoint_path
-
         self.mode = config.mode
         
         self.block1 = nn.Sequential(
@@ -85,17 +80,8 @@ class PertGenerator(nn.Module):
             x = self.crop(x)
         #perbtution limit [0, 1]
         x = torch.clamp(torch.tanh(x), min=-self.epsilon, max=self.epsilon)
-        return x
+        return x    
 
-    def load_pretain_model(self):
-        pass
-
-    def load_checkpoint(self):
-        pass
-
-    
-
-    
 
 
 class ResidualBlock(nn.Module):
@@ -123,7 +109,7 @@ class ResidualBlock(nn.Module):
 
 
 if __name__ == '__main__':
-    netG = PertGenerator(data_dim='low')
+    netG = PertGenerator()
     test_sample = torch.rand(1, 3, 32, 32)
     print('Generator output:', netG(test_sample).size())
     print('Generator parameters:', sum(p.numel() for p in netG.parameters() if p.requires_grad))

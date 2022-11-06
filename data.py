@@ -29,8 +29,8 @@ class CelebA(data.Dataset):
             self.images = images[182000:182637]
             self.labels = labels[182000:182637]
         if self.mode == 'test':
-            self.images = images[182637:]
-            self.labels = labels[182637:]
+            self.images = images[182637:192637]
+            self.labels = labels[182637:192637]
         
         self.tf = transforms.Compose([
             transforms.CenterCrop(170),
@@ -61,7 +61,7 @@ class CelebA(data.Dataset):
         if self.mode == 'valid':
             lines = lines[182000:182637]
         if self.mode == 'test':
-            lines = lines[182637:]
+            lines = lines[182637:192637]
         
         #add stargan select lable with train/test/vaild data in dataset 
         #for example  [[000001.jpg, [True, True, False, True, False]], ....]

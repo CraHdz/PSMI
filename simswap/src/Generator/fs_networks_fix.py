@@ -207,7 +207,7 @@ class Generator_Adain_Upsample(nn.Module):
         self.imagenet_std = self.imagenet_std.to(device)
         return self
 
-    def forward(self, x: Iterable[np.ndarray], dlatents: torch.Tensor, need_trans = True):
+    def forward(self, x: Iterable[np.ndarray], dlatents: torch.Tensor, need_trans=True):
         if need_trans:
             if self.use_last_act:
                 x = [self.to_tensor(_) for _ in x]

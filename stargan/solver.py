@@ -984,3 +984,36 @@ class Solver(object):
         preproc = smoothing.GaussianSmoothing2D(sigma=1.5, channels=3, kernel_size=11).to(self.device)
         return preproc(tensor)
 
+    def test_universal_model_level(self, x_real, c_org, perturb):
+        """Universal Attack by Huang Hao"""
+
+        # Load the trained generator.
+        # self.restore_model(self.test_iters)
+
+        # Prepare input images and target domain labels.
+        x_real = x_real.to(self.device)
+        c_trg_list = self.create_labels(c_org, self.c_dim, self.dataset, self.selected_attrs)
+        # Translated images.
+        x_adv = x_real + perturb
+        x_fake_list = [x_real, x_adv]
+        x_noattack_list = []
+
+        for idx, c_trg in enumerate(c_trg_list):
+            with torch.no_grad():
+                gen_noattack, gen_noattack_feats = self.G(x_real, c_trg)
+                gen, gen_feats = self.G(x_adv, c_trg)
+                x_fake_list.append(gen)
+                x_noattack_list.append(gen_noattack)
+
+        # x_concat = torch.cat(x_fake_list, dim=3)
+        # result_path = os.path.join(args.compare_output_path, '{}-images.jpg'.format(i+182638))
+        # save_image(self.denorm(x_concat.data.cpu()), result_path, nrow=1, padding=0)
+        # # 只保存对抗生成的图片做指标评测
+        # for j in range(len(x_fake_list)-2):
+        #     result_path = os.path.join(args.details_output_path, '{}-images-{}.jpg'.format(i+182638, j))
+        #     save_image(self.denorm(x_fake_list[j+2].data.cpu()), result_path, nrow=1, padding=0)
+
+        # print('Saved real and fake images into {}...'.format(result_path))
+        return x_noattack_list, x_fake_list[2:]
+        
+

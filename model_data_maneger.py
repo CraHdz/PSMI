@@ -11,6 +11,7 @@ import json
 from simswap.src.simswap import SimSwap 
 from util import img_read, to_tensor
 import cv2
+from log.log import logger
 # config = None
 #获取配置文件
 
@@ -53,7 +54,7 @@ def get_dataloader(data_path, attr_path, img_size, mode, attrs, selected_attrs, 
         data_set, batch_size=batch_size, num_workers=0,
         shuffle=False, drop_last=False
     )
-    print("数据集长度为" + str(len(data_loader)))
+    print("The dataload length is " + str(len(data_loader)))
     # if args_attack. global_settings.num_test is None:
     #     print('Testing images:', len(test_dataset))
     # else:
@@ -71,6 +72,7 @@ def prepare(config):
     # prepare deepfake models
     # config = getconfig()
     
+    logger(config.global_settings.log_dir)
 
     global_settings = config.global_settings
     
@@ -89,7 +91,8 @@ def prepare(config):
         batch_size =  global_settings.batch_size
 
     data_loader = get_dataloader(global_settings.data_path, global_settings.attr_path, 
-        global_settings.image_size, global_settings.mode, config.attgan.selected_attrs,  config.stargan.selected_attrs, batch_size)
+        global_settings.image_size, global_settings.mode, config.attgan.selected_attrs, 
+        config.stargan.selected_attrs, batch_size)
     stargan = init_stargan(config.stargan, data_loader)
     stargan.restore_model(stargan.test_iters)
 
