@@ -13,7 +13,7 @@ except:
     import stargan.defenses.smoothing as smoothing
 
 class LinfPGDAttack(object):
-    def __init__(self, model=None, device=None, epsilon=0.03, k=10, a=0.01, feat = None):
+    def __init__(self, model=None, device=None, epsilon=0.06, k=10, a=0.01, feat = None):
         """
         FGSM, I-FGSM and PGD attacks
         epsilon: magnitude of attack

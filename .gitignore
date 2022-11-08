@@ -1,4 +1,9 @@
 outputs/
 */__pycache__/
 __pycache__/
-
+simswap/weights/
+stargan/stargan_celeba_256
+checkpoint/
+weights/
+log/
+demo_result/

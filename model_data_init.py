@@ -12,41 +12,43 @@ from simswap.src.simswap import SimSwap
 from util import img_read, to_tensor
 import cv2
 from log.log import logger
-# config = None
-#获取配置文件
+from core.FaceDetector.face_detector import FaceDetector
+from core.FaceId.faceid import FaceId
 
 
-# class ObjDict(dict):
-#     """
-#     Makes a  dictionary behave like an object,with attribute-style access.
-#     """
-#     def __getattr__(self,name):
-#         try:
-#             return self[name]
-#         except:
-#             raise AttributeError(name)
-#     def __setattr__(self,name,value):
-#         self[name]=value
+def get_config(config_Path):
+    with open(config_Path) as f:
+        config = yaml.safe_load(f)
+    config = json.dumps(config)
+    config = json.loads(config, object_hook=lambda d: argparse.Namespace(**d))
+    return config 
 
+
+#init stargan net
+def init_stargan(stargan_config, celeba_data_loader):
+    slover = Solver(celeba_loader=celeba_data_loader, rafd_loader=None, config=stargan_config)
+    slover.restore_model(slover.test_iters)
+    return slover
+
+#init simswap net
 def init_simSwap(simswap_config):
     simswap = SimSwap(config=simswap_config.pipeline)
     return simswap
 
+#init face_id_net
+def init_face_id_net(face_id_config):
+    face_id_net = FaceId(face_id_config.model_path, 
+        face_id_config.device)
+    return face_id_net
 
-# def getconfig(config):
-    # global config
-    # if config is not None:
-    #     return config
-    # # with open("config.yaml", "r") as f:
-    # #     config = yaml.safe_load(f)
-    # #     config = ObjDict(config)
-    # with open("config.json", "r") as f:
-    #     config = json.load(f, object_hook=lambda d: argparse.Namespace(**d))
-    # return config
-
-#init stargan model
-def init_stargan(stargan_config, celeba_data_loader):
-    return Solver(celeba_loader=celeba_data_loader, rafd_loader=None, config=stargan_config)
+def init_face_detection_net(face_detection_config):
+    face_detection_net = FaceDetector(face_detection_config.model_path,
+        det_thresh=face_detection_config.face_detector_threshold,
+        det_size=face_detection_config.det_size,
+        mode=face_detection_config.mode,
+        device=face_detection_config.device,
+    )
+    return face_detection_net
 
 def get_dataloader(data_path, attr_path, img_size, mode, attrs, selected_attrs, batch_size):
     data_set = CelebA(data_path, attr_path, img_size, mode, attrs, selected_attrs)
@@ -67,6 +69,8 @@ def get_att_image(img_path, crop_size):
     att_image = to_tensor()(att_image).unsqueeze(0)
     return att_image 
 
+def init_per_gen_net(pert_gen_net_config):
+    return PertGenerator(pert_gen_net_config)
 
 def prepare(config):
     # prepare deepfake models
@@ -78,7 +82,6 @@ def prepare(config):
     
     print ("current mode is:" + global_settings.mode)
 
-    pert_gen_net = PertGenerator(config.pertgenerator)
 
     # attgan, attgan_args = init_attGAN(args_attack)
     # attack_dataloader = init_attack_data(args_attack, attgan_args)
@@ -93,12 +96,9 @@ def prepare(config):
     data_loader = get_dataloader(global_settings.data_path, global_settings.attr_path, 
         global_settings.image_size, global_settings.mode, config.attgan.selected_attrs, 
         config.stargan.selected_attrs, batch_size)
-    stargan = init_stargan(config.stargan, data_loader)
-    stargan.restore_model(stargan.test_iters)
 
-    simswap = init_simSwap(config.simswap)
     att_image = get_att_image(global_settings.att_image_path, global_settings.image_size)
     #inin perturbation generation network
     # transform, F, T, G, E, reference, gen_models = prepare_HiSD()
     print("Finished deepfake models initialization!")
-    return data_loader, stargan, pert_gen_net, simswap, att_image
+    return data_loader, att_image

@@ -1,6 +1,6 @@
 from email.mime import application, image
 from re import U
-import model_data_maneger
+import model_data_init
 import os
 
 import torch
@@ -18,55 +18,68 @@ import kornia
 from simswap.src.FaceAlign.face_align import align_face, inverse_transform_batch
 from util import tensor2img
 from core.pert_generator import PertGenerator
-from core.img_pert_weight import img_per_weight
-from torch import nn
 from util import *
 from log.log import logger
 from core.loss_function import loss_fuc
 import argparse
 import yaml
 import json
-os.environ['CUDA_VISIBLE_DEVICES'] = "0,1"
+from torch.cuda.amp import  autocast,GradScaler
+from core.PSMI_model import PSMI
+from model_data_init import *
+
+
 class PerbApplication:
     def __init__(self, config) -> None:
         self.config = config
 
-        data_loader, stargan, pert_gen_net, simswap, att_image = model_data_maneger.prepare(self.config)
-        
+        data_loader, att_image = prepare(self.config)
+       
         self.data_loader = data_loader
-        self.stargan = stargan
 
-        self.simswap = simswap
-        self.device =  torch.device(config.global_settings.device)
+        #att_image is the base image for swap face 
         self.att_image = att_image
+
+        self.device =  torch.device(config.global_settings.device)
+
+        #init net
+        self.stargan_net = init_stargan(config.stargan, data_loader)
+        self.simswap = init_simSwap(config.simswap)
+        self.face_detector_net = init_face_detection_net(config.face_detector_net)
+        self.face_id_net = init_face_id_net(config.face_id_net)
+        self.pert_gen_net = init_per_gen_net(config.pertgenerator)
+        
+        self.PSMI = PSMI(att_image, self.pert_gen_net, self.stargan_net.G, self.simswap.simswap_net
+            , self.face_id_net, self.face_detector_net).to(self.device)
+        
 
         #train config
         self.epochs = config.global_settings.epochs
-        self.checkpoint_path = config.global_settings.checkpoint_path
+        self.checkpoint_file = config.global_settings.checkpoint_file
         self.device_ids = config.global_settings.device_ids
 
         self.model_path = config.global_settings.model_path
+        
 
+        #checkpoint config
+        self.checkpoint_path = config.global_settings.checkpoint_path
+        self.is_load_checkpoint = config.global_settings.is_load_checkpoint
+        self.checkpoint_file = config.global_settings.checkpoint_file
+        
         #DataParallel
         if self.config.global_settings.is_dataParallel:
-            self.per_gen_net = torch.nn.DataParallel(pert_gen_net, device_ids=self.device_ids)
-            self.simswap_net = torch.nn.DataParallel(simswap.simswap_net, device_ids=self.device_ids)
-            self.face_id_net = torch.nn.DataParallel(simswap.face_id_net, device_ids=self.device_ids)
-            self.stargan_net = torch.nn.DataParallel(stargan.G, device_ids=self.device_ids)
-
+            self.PSMI = torch.nn.DataParallel(self.PSMI, device_ids=self.device_ids).cuda()
+            self.pert_gen_net = self.PSMI.module.pert_gen_net
         else:
-            self.per_gen_net = pert_gen_net
-            self.simswap_net = simswap.simswap_net
-            self.face_id_net = simswap.face_id_net
-            self.stargan_net = stargan.G
-
+            self.pert_gen_net = self.PSMI.pert_gen_net
+        
 
     def get_CUMA_perturbation(self):
         return torch.load(self.config.global_settings.universal_perturbation_path)
 
 
-    def attack_face_swap(self):
-        pgd_attack = attacks.LinfPGDAttack(model=self.face_id_net, device="cuda" , feat=None)
+    def attack_face_swap_demo(self):
+        pgd_attack = attacks.LinfPGDAttack(model=self.PSMI.face_id_net, device="cuda" , feat=None)
         
 
         
@@ -78,18 +91,18 @@ class PerbApplication:
 
         #get face from id_iamge and att_image
         #the return images type is list [face ndarry, ....] 
-        id_images_align, id_transforms, _ = self.simswap.run_detect_align(
+        id_images_align, id_transforms, _ = self.PSMI.run_detect_align(
             image=id_image, for_id=False, crop_size=256)
-        att_image, att_transforms, _ = self.simswap.run_detect_align(
+        att_image, att_transforms, _ = self.PSMI.run_detect_align(
             image=att_image, for_id=False, crop_size=256)
         
         if id_image is None or att_image is None:
             print("Don't detect face")
             return
-        for img in id_images_align:
-            img_save_np(img, self.config.global_settings.demo_result + "/origin_id_{}.jpg".format(id_images_align.index(img)))
-        for img in att_image:
-            img_save_np(img, self.config.global_settings.demo_result + "/origin_att_{}.jpg".format(att_image.index(img)))
+        # for img in id_images_align:
+        #     img_save_np(img, self.config.global_settings.demo_result + "/origin_id_{}.jpg".format(id_images_align.index(img)))
+        # for img in att_image:
+        #     img_save_np(img, self.config.global_settings.demo_result + "/origin_att_{}.jpg".format(att_image.index(img)))
         tf = transforms.Compose(
                 [
                     transforms.ToTensor(),
@@ -106,8 +119,8 @@ class PerbApplication:
         )
         
         
-        id_latent_with_no_perb: torch.Tensor = self.face_id_net(id_images, need_trans=False)
-        swap_image_with_no_perb: torch.Tensor = self.simswap_net(
+        id_latent_with_no_perb: torch.Tensor = self.PSMI.face_id_net(id_images, need_trans=False)
+        swap_image_with_no_perb: torch.Tensor = self.PSMI.face_swap_net(
             att_image, id_latent_with_no_perb, need_trans=False)
 
         img_no_perb_path = self.config.global_settings.demo_result + "/swapped_img_no_perb.jpg"   
@@ -117,147 +130,46 @@ class PerbApplication:
 
         image_with_perb, perb = pgd_attack.perturb_simswap(
             id_images, att_image, swap_image_with_no_perb, 
-            self.face_id_net, self.simswap_net
+            self.PSMI.face_id_net, self.PSMI.face_swap_net
         )
+        # opt = None
+        # checkpoint_load(self.PSMI.pert_gen_net, opt, self.checkpoint_file)
+        # pert = self.PSMI.pert_gen_net(id_images.to(self.device))
+        # image_with_perb = id_images + pert.cpu()
+
+
         # image_with_perb = id_images.to(self.device) + get_CUMA_perturbation(self.config).to(self.device)
         origin_perb_path = self.config.global_settings.demo_result + "/origin_perb.jpg"
         img_save(image_with_perb, origin_perb_path)
 
 
-        id_latent_with_perb = self.face_id_net(image_with_perb, need_trans=False)
-        swap_image_with_perb = self.simswap_net(att_image, id_latent_with_perb, need_trans=False)
+        id_latent_with_perb = self.PSMI.face_id_net(image_with_perb, need_trans=False)
+        print(torch.nn.MSELoss()(id_latent_with_perb, id_latent_with_no_perb))
+        swap_image_with_perb = self.PSMI.face_swap_net(att_image, id_latent_with_perb, need_trans=False)
 
         img_per_path = self.config.global_settings.demo_result + "/swapped_img_perb.jpg"
-        # img_save(swap_image_with_no_perb, img_no_perb_path)
-        # img_save(swap_image_with_perb, img_per_path)
         image_perb = transforms.ToPILImage()(swap_image_with_perb[0].cpu().detach())
         image_perb.save(img_per_path)
 
         # self.restore_id_image(id_image, id_images_align, id_transforms, image_with_perb)
 
-    def restore_id_image(self, id_image, id_images_align, id_transforms, image_with_perb):
-        align_id_img_batch_for_parsing_model: torch.Tensor = torch.stack(
-            [to_tensor_norm()(x) for x in id_images_align], dim=0
-        )
-        align_id_img_batch_for_parsing_model = (
-            align_id_img_batch_for_parsing_model.to(self.device)
-        )
-
-        id_transforms: torch.Tensor = torch.stack(
-            [torch.tensor(x) for x in id_transforms], dim=0
-        )
-        id_transforms = id_transforms.to(self.device)
-
-        align_id_img_batch: torch.Tensor = torch.stack(
-            [to_tensor()(x) for x in id_images_align], dim=0
-        )
-        align_id_img_batch = align_id_img_batch.to(self.device)
-
-        img_white = torch.zeros_like(align_id_img_batch) + 255
-
-        inv_id_transforms: torch.Tensor = inverse_transform_batch(id_transforms)
-
-        # Get face masks for the id image
-        face_mask, ignore_mask_ids = self.simswap.bise_net.get_mask(
-            align_id_img_batch_for_parsing_model, self.simswap.crop_size
-        )
-
-        soft_face_mask, _ = self.simswap.smooth_mask(face_mask)
-
-        # Only take face area from the swapped image
-        std = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
-        mean = torch.tensor([0.5, 0.5, 0.5]).view(1, 3, 1, 1)
-        image_with_perb = std * image_with_perb.detach().cpu() + mean
-
-        image_with_perb = image_with_perb.to(self.device) * soft_face_mask + align_id_img_batch * (
-            1 - soft_face_mask
-        )
-        image_with_perb[ignore_mask_ids, ...] = align_id_img_batch[ignore_mask_ids, ...]
-
-        frame_size = (id_image.shape[0], id_image.shape[1])
-
-        # Place swapped faces and masks where they should be in the original frame
-        target_image = kornia.geometry.transform.warp_affine(
-            image_with_perb.double(),
-            inv_id_transforms,
-            frame_size,
-            mode="nearest",
-            padding_mode="zeros",
-            align_corners=True,
-            fill_value=torch.zeros(3),
-        )
-        img_save(target_image, self.config.global_settings.demo_result + "targe_image.jpg")
-        # if torch.sum(ignore_mask_ids.int()) > 0:
-        #     img_white = img_white.double()[ignore_mask_ids, ...]
-        #     inv_id_transforms = inv_id_transforms[ignore_mask_ids, ...]
-
-        img_mask = kornia.geometry.transform.warp_affine(
-            img_white.double(),
-            inv_id_transforms,
-            frame_size,
-            mode="bilinear",
-            padding_mode="zeros",
-            align_corners=True,
-            fill_value=torch.zeros(3),
-        )
-
-        img_mask[img_mask > 20] = 255
-
-        # numpy postprocessing
-        # Collect masks for all crops
-        img_mask = torch.sum(img_mask, dim=0, keepdim=True)
-
-        # Get np.ndarray with range [0...255]
-        img_mask = tensor2img(img_mask / 255.0)
-
-        if self.simswap.use_erosion:
-            kernel = np.ones(
-                (self.simswap.erode_mask_value, self.simswap.erode_mask_value), dtype=np.uint8
-            )
-            img_mask = cv2.erode(img_mask, kernel, iterations=1)
-
-        if self.simswap.use_blur:
-            img_mask = cv2.GaussianBlur(
-                img_mask, (self.simswap.smooth_mask_value, self.simswap.smooth_mask_value), 0
-            )
-
-        # Collect all swapped crops
-        target_image = torch.sum(target_image, dim=0, keepdim=True)
-        target_image = tensor2img(target_image)
-
-        img_mask = np.clip(img_mask / 255, 0.0, 1.0)
-
-        result = (img_mask * target_image + (1 - img_mask) * id_image).astype(np.uint8)
-        img_path = self.config.global_settings.demo_result + "/restore_perb_id_image.jpg"
-        cv2.imwrite(str(img_path), cv2.cvtColor(result, cv2.COLOR_RGB2BGR))
-
-        return result
     
     def face_swap_attack(self, id_images, pertub):
         if id_images is None or self.att_image is None:
             print("Don't detect face")
             return
         
-        # with torch.no_grad():
-        #     id_latent_no_pert: torch.Tensor = self.face_id_net(id_images, need_trans = False)
-        #     swap_images_no_pert: torch.Tensor = self.simswap_net(
-        #         self.att_image, id_latent_no_pert, need_trans = False)
-            
-        #     id_images_pert = id_images + pertub
-
-        #     id_latent_with_pert: torch.Tensor = self.face_id_net(id_images_pert, need_trans = False)
-        #     swap_images_with_pert: torch.Tensor = self.simswap_net(
-        #         self.att_image, id_latent_with_pert, need_trans = False)
         with torch.no_grad():
-            id_latent_no_pert: torch.Tensor = self.face_id_net(id_images, need_trans = False)
+            id_latent_no_pert: torch.Tensor = self.face_id_net(id_images, need_trans=False)
+            
             swap_images_no_pert: torch.Tensor = self.simswap_net(
-                self.att_image, id_latent_no_pert, need_trans = False)
+                self.att_image, id_latent_no_pert, need_trans=False)
         
         id_images_pert = id_images + pertub
 
         id_latent_with_pert: torch.Tensor = self.face_id_net(id_images_pert, need_trans = False)
         swap_images_with_pert: torch.Tensor = self.simswap_net(
-            self.att_image, id_latent_with_pert, need_trans = False)
+            self.att_image, id_latent_with_pert, need_trans=False)
 
         return swap_images_no_pert, swap_images_with_pert
     
@@ -268,7 +180,6 @@ class PerbApplication:
         # self.restore_model(self.test_iters)
 
         # Prepare input images and target domain labels.
-        x_real = x_real.to(self.device)
         c_trg_list = self.stargan.create_labels(c_org, self.stargan.c_dim, self.stargan.dataset, self.stargan.selected_attrs)
         # Translated images.
         x_adv = x_real + perturb
@@ -293,86 +204,52 @@ class PerbApplication:
         l1_error, l2_error, min_dist, l0_error = 0.0, 0.0, 0.0, 0.0
         n_dist, n_samples = 0, 0
 
+       
         # perturbs = self.get_CUMA_perturbation(self.config)
-        optimizer = torch.optim.Adam(self.per_gen_net.parameters(), lr=0.001, weight_decay=0.0001)
+        optimizer = torch.optim.Adam(self.pert_gen_net.parameters(), lr=0.1, weight_decay=0.005)
+        if self.is_load_checkpoint:
+            checkpoint_load(self.pert_gen_net, optimizer, self.checkpoint_file)
+        scaler = GradScaler()
         for epoch in range(self.epochs):
+            loss_epoch = 0
             for idx, (imgs, att_a, c_org) in enumerate(self.data_loader):
                 #the image.shape is b, c, h, w, and the number is limit in [-1, 1] 
-                imgs = imgs.to(self.device)
-                # imgs = images.to(self.device)
-                #save dateset image
-                # for index in range(imgs.shape[0]):
-                #     out_file = os.path.join(self.config.global_settings.demo_result + '/celebA/celebA_{}.jpg'.format(index))
-                #     img_save(imgs[index], out_file)
                 
+                imgs = imgs.to(self.device)
+    
                 c_org = c_org.to(self.device)
                 c_org = c_org.type(torch.float)
-
-                self.per_gen_net = self.per_gen_net.to(self.device)
-                perturbs = self.per_gen_net(imgs)
-
-                x_noattack_list_stargan, x_attack_list_stargan = self.face_edit_attck(imgs, c_org, perturbs)
-                x_noattack_list_stargan = torch.stack(
-                    x_noattack_list_stargan, dim = 0
-                )
-                x_attack_list_stargan = torch.stack(
-                    x_attack_list_stargan, dim=0
-                )
-                x_noattack_list_simswap, x_attack_list_simswap = self.face_swap_attack(imgs, perturbs)
-
-                # x_total_list_stargan = [imgs, imgs + perturbs]
-                # for j in range(len(x_noattack_list_stargan)):
-                #     gen_noattack = x_noattack_list_stargan[j]
-                #     gen = x_noattack_list_stargan[j]
-
-                #     x_total_list_stargan.append(x_noattack_list_stargan[j])
-                #     x_total_list_stargan.append(x_attack_list_stargan[j])
-
-                #     l1_error += F.l1_loss(gen, gen_noattack)
-                #     l2_error += F.mse_loss(gen, gen_noattack)
-                #     l0_error += (gen - gen_noattack).norm(0)
-                #     min_dist += (gen - gen_noattack).norm(float('-inf'))
-                #     if F.mse_loss(gen, gen_noattack) > 0.05:
-                #         n_dist += 1
-                #     n_samples += 1
                 
-                # # x_total_list_simswap = [imgs, imgs + perturbs]
-                # x_total_list_simswap = []
-                # for j in range(len(x_noattack_list_simswap)):
-                #     gen_noattack = x_noattack_list_simswap[j]
-                #     gen = x_noattack_list_stargan[j]
-
-                #     x_total_list_simswap.append(x_noattack_list_simswap[j])
-                #     x_total_list_simswap.append(x_attack_list_simswap[j])
-
-
-                #     l1_error += F.l1_loss(gen, gen_noattack)
-                #     l2_error += F.mse_loss(gen, gen_noattack)
-                #     l0_error += (gen - gen_noattack).norm(0)
-                #     min_dist += (gen - gen_noattack).norm(float('-inf'))
-                #     if F.mse_loss(gen, gen_noattack) > 0.05:
-                #         n_dist += 1
-                #     n_samples += 1
-
                 optimizer.zero_grad()
-                loss = loss_fuc(x_noattack_list_stargan, x_attack_list_stargan, x_noattack_list_simswap, x_attack_list_simswap)
-
-                loss.backward()
-                optimizer.step()
+                # self.pert_gen_net = self.pert_gen_net.to(self.device)
+                # perturbs = self.pert_gen_net(imgs)
                 
-                # save origin image
-                # x_concat = torch.cat(x_total_list_stargan, dim=3)
-                # out_file = os.path.join(self.config.global_settings.demo_result + '/stargan.jpg')
-                # vutils.save_image(x_concat, out_file, nrow=1, normalize=True, range=(-1., 1.))
+                # x_noattack_list_stargan, x_attack_list_stargan = self.face_edit_attck(imgs, c_org, perturbs)
+                # x_noattack_list_stargan = torch.stack(
+                #     x_noattack_list_stargan, dim = 0
+                # )
+                # x_attack_list_stargan = torch.stack(
+                #     x_attack_list_stargan, dim=0
+                # )
 
-                # x_concat = torch.cat(x_total_list_simswap, dim=1)
-                # out_file = os.path.join(self.config.global_settings.demo_result + '/simswap.jpg')
-                # vutils.save_image(x_total_list_simswap, out_file, nrow=1, normalize=True, range=(-1., 1.))
+                # x_noattack_list_simswap, x_attack_list_simswap = self.face_swap_attack(imgs, perturbs)
+                c_trg_list = self.stargan.create_labels(c_org, self.stargan.c_dim, self.stargan.dataset, self.stargan.selected_attrs)
+                with autocast():
+                    x_noattack_list_edit, x_attack_list_edit,x_noatta_id_lats, x_attack_id_lats, img_ori, img_pert = self.PSMI(imgs, c_trg_list)
+                    loss = loss_fuc(x_noattack_list_edit, x_attack_list_edit, x_noatta_id_lats, x_attack_id_lats, img_ori, img_pert)
+
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+                loss_epoch = loss_epoch + loss
                 logger.info("epoch:" + str(epoch) + ",   loss:" + str(loss))
-            if epoch % 5 == 0:
+                # if idx % 10 == 0:
+                #     self.PSMI.print_pert_gen_net_train_info()
+            if epoch % 7 == 0:
                 checkpoint_path = self.checkpoint_path + "/point_epoch_{}.cp".format(epoch)
-                checkpoint_save(self.per_gen_net, optimizer, epoch, checkpoint_path)
-        torch.save(self.per_gen_net, self.model_path)
+                checkpoint_save(self.pert_gen_net, optimizer, epoch, checkpoint_path)
+            logger.info("this epoch loss mean:" + str(loss_epoch / idx))
+        torch.save(self.pert_gen_net, self.model_path)
 
         # print('stargan {} images. L1 error: {}. L2 error: {}. prop_dist: {}. L0 error: {}. L_-inf error: {}.'.format(n_samples, l1_error / n_samples, l2_error / n_samples, float(n_dist) / n_samples, l0_error / n_samples, min_dist / n_samples))
 
@@ -383,7 +260,8 @@ class PerbApplication:
         n_dist, n_samples = 0, 0
         
         model_CKPT = torch.load(self.model_path)
-        self.per_gen_net.load_state_dict(model_CKPT['model_state_dict'])
+        self.PSMI.pert_gen_net.load_state_dict(model_CKPT['model_state_dict'])
+        self.PSMI.print_pert_gen_net_train_info()
         with torch.no_grad():
             for idx, (imgs, att_a, c_org) in enumerate(self.data_loader):
                 #the image.shape is b, c, h, w, and the number is limit in [-1, 1] 
@@ -396,11 +274,12 @@ class PerbApplication:
                 
                 c_org = c_org.to(self.device)
                 c_org = c_org.type(torch.float)
+                c_trg_list = self.stargan.create_labels(c_org, self.stargan.c_dim, self.stargan.dataset, self.stargan.selected_attrs)
 
-                self.per_gen_net = self.per_gen_net.to(self.device)
-                perturbs = self.per_gen_net(imgs)
+                self.PSMI.pert_gen_net = self.PSMI.pert_gen_net.to(self.device)
+                perturbs = self.PSMI.pert_gen_net(imgs)
 
-                x_noattack_list_stargan, x_attack_list_stargan = self.face_edit_attck(imgs, c_org, perturbs)
+                x_noattack_list_stargan, x_attack_list_stargan = self.PSMI.face_edit_attck(imgs, perturbs, c_trg_list)
                 x_noattack_list_stargan = torch.stack(
                     x_noattack_list_stargan, dim = 0
                 )
@@ -408,7 +287,7 @@ class PerbApplication:
                     x_attack_list_stargan, dim=0
                 )
 
-                x_noattack_list_simswap, x_attack_list_simswap = self.face_swap_attack(imgs, perturbs)
+                x_noattack_list_simswap, x_attack_list_simswap = self.PSMI.face_swap_attack(imgs, perturbs)
                 x_total_list_stargan = [imgs, imgs + perturbs]
                 for j in range(len(x_noattack_list_stargan)):
                     # gen_noattack = x_noattack_list_stargan[j]
@@ -426,7 +305,7 @@ class PerbApplication:
                     # n_samples += 1
                 
                 # x_total_list_simswap = [imgs, imgs + perturbs]
-                x_total_list_simswap = [imgs, imgs + perturbs, x_noattack_list_simswap, x_attack_list_simswap]
+                x_total_list_simswap = [x_noattack_list_simswap, x_attack_list_simswap]
                 # for j in range(len(x_noattack_list_simswap)):
                     # gen_noattack = x_noattack_list_simswap[j]
                     # gen = x_noattack_list_stargan[j]
@@ -443,37 +322,23 @@ class PerbApplication:
                     #     n_dist += 1
                     # n_samples += 1
 
-                # loss = loss_fuc(x_noattack_list_stargan, x_attack_list_stargan, x_noattack_list_simswap, x_attack_list_simswap)
                 # save origin image
                 x_concat = torch.cat(x_total_list_stargan, dim=3)
-                print(x_concat.shape)
                 out_file = os.path.join(self.config.global_settings.demo_result + '/stargan.jpg')
                 vutils.save_image(x_concat, out_file, nrow=1, normalize=True, range=(-1., 1.))
 
                 x_concat = torch.cat(x_total_list_simswap, dim=3)
-                print(x_concat.shape)
                 out_file = os.path.join(self.config.global_settings.demo_result + '/simswap.jpg')
-                vutils.save_image(x_concat, out_file, nrow=1, normalize=True, range=(-1., 1.))
+                vutils.save_image(x_concat, out_file, nrow=1, normalize=False, range=(0., 1.))
                 break
 
     def vaild(self):
-        
-        # model_data_maneger.getconfig("config.yaml")
-
-        #att_gan
-        # l1_error, l2_error, min_dist, l0_error = 0.0, 0.0, 0.0, 0.0
-        # n_dist, n_samples = 0, 0
 
         perturbs = self.get_CUMA_perturbation().to(self.device)
 
         with torch.no_grad():
             for idx, (imgs, att_a, c_org) in enumerate(self.data_loader):
                 imgs = imgs.to(self.device)
-                # imgs = images.to(self.device)
-                #save dateset image
-                # for index in range(imgs.shape[0]):
-                #     out_file = os.path.join(self.config.global_settings.demo_result + '/celebA/celebA_{}.jpg'.format(index))
-                #     img_save(imgs[index], out_file)
                 
                 c_org = c_org.to(self.device)
                 c_org = c_org.type(torch.float)
@@ -488,13 +353,6 @@ class PerbApplication:
                     x_total_list.append(x_noattack_list[j])
                     x_total_list.append(x_attack_list[j])
 
-                    # l1_error += F.l1_loss(gen, gen_noattack)
-                    # l2_error += F.mse_loss(gen, gen_noattack)
-                    # l0_error += (gen - gen_noattack).norm(0)
-                    # min_dist += (gen - gen_noattack).norm(float('-inf'))
-                    # if F.mse_loss(gen, gen_noattack) > 0.05:
-                    #     n_dist += 1
-                    # n_samples += 1
                 
                 # # save origin image
                 # out_file = config.global_settings.result_path + '/stargan_original.jpg'
@@ -517,25 +375,20 @@ class PerbApplication:
                 #     gen = x_fake_list[j]
                 #     out_file = config.global_settings.result_path + '/stargan_advgen_{}.jpg'.format(j)
                 #     vutils.save_image(gen, out_file, nrow=1, normalize=True, range=(-1., 1.))
-
                 break
 
 
-def yaml_to_json(config_Path):
-    with open(config_Path) as f:
-        config = yaml.safe_load(f)
-    config = json.dumps(config)
-    config = json.loads(config, object_hook=lambda d: argparse.Namespace(**d))
-    return config 
+    
 
-# @hydra.main(config_path="configs/", config_name="config.yaml")
+
 def main():
     #vaild(config)
     config_Path = './configs/config.yaml'
-    config = yaml_to_json(config_Path)
+    config = model_data_init.get_config(config_Path)
     app  = PerbApplication(config)
-    # app.attack_face_swap()
-    app.train()
+    app.attack_face_swap_demo()
+    # app.train()
+    # app.test()
     # app.vaild()
 
 if __name__ == "__main__" :

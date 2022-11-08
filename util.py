@@ -58,13 +58,13 @@ def img_save_np(img, out_file):
 
 def checkpoint_save(model, optimizer, epoch, save_path):
     checkpoint = {"model_state_dict": model.state_dict(),
-                      "optimizer_state_dict": optimizer.state_dict(),
-                      "epoch": epoch}
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "epoch": epoch}
     torch.save(checkpoint, save_path)
 
 def checkpoint_load(model, optimizer, load_path):
     model_CKPT = torch.load(load_path)
     model.load_state_dict(model_CKPT['model_state_dict'])
-    optimizer.load_state_dict(model_CKPT['optimizer_state_dict'])
-    epoch = model_CKPT['epoch']
-    return model, optimizer, epoch
+    # optimizer.load_state_dict(model_CKPT['optimizer_state_dict'])
+    # epoch = model_CKPT['epoch']
+    # return model, optimizer, epoch
