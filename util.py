@@ -21,14 +21,12 @@ def tensor2img(tensor):
     img = np.clip(img * 255, 0.0, 255.0).astype(np.uint8)
     return img
 
-def to_tensor_norm():
-    return transforms.Compose([
+to_tensor_norm = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
     
-def to_tensor():
-    return transforms.Compose([
+to_tensor =  transforms.Compose([
         transforms.ToTensor(),
     ])
 

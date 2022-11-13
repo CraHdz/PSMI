@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+from img_pert_weight import img_per_weight
 ngf = 64
 
 class PertGenerator(nn.Module):
@@ -17,7 +17,7 @@ class PertGenerator(nn.Module):
         self.epsilon = config.epsilon
 
         self.mode = config.mode
-        
+        self.device = torch.device(config.device)
         self.block1 = nn.Sequential(
             nn.ReflectionPad2d(3),
             nn.Conv2d(3, ngf, kernel_size=7, padding=0, bias=False),
@@ -65,6 +65,7 @@ class PertGenerator(nn.Module):
             nn.ReflectionPad2d(3),
             nn.Conv2d(ngf, 3, kernel_size=7, padding=0)
         )
+        self.Softsign = nn.Softsign()
 
         # self.crop = nn.ConstantPad2d((0, -1, -1, 0), 0)
 
@@ -78,11 +79,11 @@ class PertGenerator(nn.Module):
         x = self.upsampl1(x)
         x = self.upsampl2(x)
         x = self.blockf(x)
-        # if self.inception:
-        #     x = self.crop(x)
         #perbtution limit [0, 1]
         # x = torch.clamp(torch.tanh(x), min=-self.epsilon, max=self.epsilon)
-        pert = (torch.sigmoid(x) -0.5) * 2 * self.epsilon
+        pert = self.Softsign(x) * self.epsilon
+        pert_weight_nat = img_per_weight(images, kernel_size=3, device=self.device)
+        pert = pert_weight_nat * pert
         images_with_pert = torch.clamp(images + pert, min=-1, max=1) 
         return images_with_pert - images
 

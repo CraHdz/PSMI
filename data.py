@@ -15,36 +15,34 @@ class CelebA(data.Dataset):
         self.attr_path = attr_path
         self.selected_attrs = attgan_selected_attrs
         self.stargan_selected_attrs = stargan_selected_attrs
-        att_list = open(attr_path, 'r', encoding='utf-8').readlines()[1].split()
-        atts = [att_list.index(att) + 1 for att in attgan_selected_attrs]
+        # att_list = open(attr_path, 'r', encoding='utf-8').readlines()[1].split()
+        # atts = [att_list.index(att) + 1 for att in attgan_selected_attrs]
         #this property images just imagename, not data
-        images = np.loadtxt(attr_path, skiprows=2, usecols=[0], dtype=np.str)
-        labels = np.loadtxt(attr_path, skiprows=2, usecols=atts, dtype=np.int)
+        # images = np.loadtxt(attr_path, skiprows=2, usecols=[0], dtype=np.str)
+        # labels = np.loadtxt(attr_path, skiprows=2, usecols=atts, dtype=np.int)
+        images =  os.listdir(self.data_path)
         self.mode = mode
         
         if self.mode == 'train':
-            self.images = images[:182000]
-            self.labels = labels[:182000]
+            self.images = images[:24000]
+            # self.labels = labels[:182000]
         if self.mode == 'valid':
-            self.images = images[182000:182637]
-            self.labels = labels[182000:182637]
+            self.images = images[24000:27000]
+            # self.labels = labels[182000:182637]
         if self.mode == 'test':
-            self.images = images[182637:192637]
-            self.labels = labels[182637:192637]
+            self.images = images[27000:]
+            # self.labels = labels[182637:192637]
         
         self.tf = transforms.Compose([
-            transforms.CenterCrop(170),
-            transforms.Resize(image_size),
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
                                        
         self.length = len(self.images)
 
-        # stargan
+        #stargan
         self.attr2idx = {}
-        self.idx2attr = {}
-        self.dateset = []
+        self.dataset = []
         self.preprocess()
 
     def preprocess(self):
@@ -55,34 +53,27 @@ class CelebA(data.Dataset):
         #read attrname line
         for i, attr_name in enumerate(all_attr_names):
             self.attr2idx[attr_name] = i
-            self.idx2attr[i] = attr_name
-        if self.mode == 'train':
-            lines = lines[2:182000]
-        if self.mode == 'valid':
-            lines = lines[182000:182637]
-        if self.mode == 'test':
-            lines = lines[182637:192637]
         
         #add stargan select lable with train/test/vaild data in dataset 
         #for example  [[000001.jpg, [True, True, False, True, False]], ....]
-        for i, line in enumerate(lines):
-            split = line.split()
-            filename = split[0]
-            values = split[1:]
-
+        for i, filename in enumerate(self.images):
+            line_num = int(filename.split('.')[0]) + 2
+            line = lines[line_num]
+            values = line.split()[1:]
+            if filename is not self.images[i]:
+                continue
             label = []
             for attr_name in self.stargan_selected_attrs:
                 idx = self.attr2idx[attr_name]
                 label.append(values[idx] == '1')
-            self.dateset.append([filename, label])
+            self.dataset.append([filename, label])
         print('Finished preprocessing the CelebA dataset...')
 
     def __getitem__(self, index):
         img = self.tf(Image.open(os.path.join(self.data_path, self.images[index])))
-        att = torch.tensor((self.labels[index] + 1) // 2)
-        filename, label = self.dateset[index]
-
-        return img, att, torch.FloatTensor(label)
+        # att = torch.tensor((self.labels[index] + 1) // 2)
+        filename, label = self.dataset[index]
+        return img, torch.FloatTensor(label)
         
     def __len__(self):
         return self.length

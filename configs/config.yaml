@@ -1,26 +1,27 @@
 global_settings : 
-    data_path : "./data/img_align_celeba"
+    data_path : "./data/img_align_celeba_256"
     attr_path : ./data/list_attr_celeba.txt
     result_path : "./result"
     gpu : 1
-    mode : test
+    mode : train
     image_size : 256
     universal_perturbation_path : "./perturbation.pt"
     demo_result : "./demo_result"
     demo_images : "./demo/test2.jpg"
-    demo_image_id : "./demo/image_id.jpg"
-    demo_image_att : "./demo/image_att.jpg"
+    demo_image_id : "./demo/image_att.jpg"
+    demo_image_att : "./demo/image_id.jpg"
     att_image_path: "./demo/image_att_train.jpg"
-    batch_size : 30
+    id_image_path: "./demo/image_id_train.jpg"
+    batch_size : 16
     epochs : 100 
     checkpoint_path : "./checkpoint"
-    checkpoint_file: "./checkpoint/point_epoch_0.cp"
+    checkpoint_file: "./checkpoint/point_epoch_7.cp"
     is_load_checkpoint: false
     device_ids : [0, 1]
     model_path : "./checkpoint/point_epoch_0.cp"
     log_dir : "./log/log_files"
     device : "cuda"
-    is_dataParallel : false
+    is_dataParallel : true
 
 fake_model_para: 
     lr : 0.01
@@ -79,24 +80,38 @@ attgan:
 pertgenerator:
     mode : tain
     inception : false
-    epsilon : 0.06
+    epsilon : 0.03
+    device: "cuda"
 
 face_id_net :
-    model_path : "./simswap/weights/arcface_model/arcface_net.jit"
+    model_path : "./weights/arcface_model/arcface_net.jit"
     device : "cuda"
 
 
 face_detector_net :
-    model_path : "./simswap/weights/antelope/scrfd_10g_bnkps.onnx"
+    model_path : "./weights/antelope/scrfd_10g_bnkps.onnx"
     face_detector_threshold : 0.6
     mode : "ffhq"
     device : "cuda"
     det_size : [640, 640]
 
+bise_net : 
+    model_path : "./weights/parsing_model/79999_iter.pth"
+    n_classes : 19
+    device : "cuda"
+
 parsing_model_net : 
-    model_path : "./simswap/weights/parsing_model/79999_iter.pth"
+    model_path : "./weights/parsing_model/79999_iter.pth"
+
+PSMI :
+    erode_mask_value: 40
+    smooth_mask_value: 41
+    crop_size: 256
+    device: "cuda"
 
 simswap:
+    device: "cuda"
+    model_path : "./simswap/weights/simswap_224/latest_net_G.pth"
     data:
         id_image: "./simswap/demo_file/Iron_man.jpg"
         att_image: "./simswap/demo_file/multi_people.jpg"

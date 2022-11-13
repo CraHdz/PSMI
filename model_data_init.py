@@ -8,13 +8,15 @@ import torch.utils.data as data
 import argparse
 import yaml
 import json
-from simswap.src.simswap import SimSwap 
-from util import img_read, to_tensor
+from util import img_read, to_tensor, to_tensor_norm
 import cv2
 from log.log import logger
 from core.FaceDetector.face_detector import FaceDetector
 from core.FaceId.faceid import FaceId
+from core.PostProcess.ParsingModel.model import BiSeNet
+from simswap.src.Generator.fs_networks_fix import Generator_Adain_Upsample
 
+import torch
 
 def get_config(config_Path):
     with open(config_Path) as f:
@@ -32,8 +34,22 @@ def init_stargan(stargan_config, celeba_data_loader):
 
 #init simswap net
 def init_simSwap(simswap_config):
-    simswap = SimSwap(config=simswap_config.pipeline)
-    return simswap
+    state_dict = torch.load(simswap_config.model_path)
+    
+    # simswap = SimSwap(config=simswap_config.pipeline)
+    simswap_net = Generator_Adain_Upsample(
+            input_nc=3,
+            output_nc=3,
+            latent_size=512,
+            n_blocks=9,
+            deep=False,
+            use_last_act=True)
+    
+    simswap_net.load_state_dict(state_dict)
+    device = torch.device(simswap_config.device)
+    simswap_net = simswap_net.to(device)
+    simswap_net.eval()
+    return simswap_net
 
 #init face_id_net
 def init_face_id_net(face_id_config):
@@ -50,6 +66,20 @@ def init_face_detection_net(face_detection_config):
     )
     return face_detection_net
 
+def init_bias_net(bias_net_config):
+    state_dict = torch.load(bias_net_config.model_path)
+    bise_net = BiSeNet(n_classes=bias_net_config.n_classes)
+    bise_net.load_state_dict(state_dict)
+    device = torch.device(bias_net_config.device)
+    bise_net = bise_net.to(device)
+    bise_net.eval()
+    return bise_net
+
+def get_id_image(id_image_path):
+    id_image  = img_read(id_image_path)
+    id_image = to_tensor_norm(id_image)
+    return id_image
+
 def get_dataloader(data_path, attr_path, img_size, mode, attrs, selected_attrs, batch_size):
     data_set = CelebA(data_path, attr_path, img_size, mode, attrs, selected_attrs)
     data_loader = data.DataLoader(
@@ -63,10 +93,10 @@ def get_dataloader(data_path, attr_path, img_size, mode, attrs, selected_attrs, 
     #     print('Testing images:', min(len(test_dataset), args_attack. global_settings.num_test))
     return data_loader
 
-def get_att_image(img_path, crop_size):
+def get_att_image(img_path, img_size):
     att_image  = img_read(img_path)
-    cv2.resize(att_image, (crop_size, crop_size))
-    att_image = to_tensor()(att_image).unsqueeze(0)
+    cv2.resize(att_image, (img_size, img_size))
+    att_image = to_tensor(att_image)
     return att_image 
 
 def init_per_gen_net(pert_gen_net_config):
@@ -98,7 +128,8 @@ def prepare(config):
         config.stargan.selected_attrs, batch_size)
 
     att_image = get_att_image(global_settings.att_image_path, global_settings.image_size)
+    id_image = get_id_image(global_settings.id_image_path)
     #inin perturbation generation network
     # transform, F, T, G, E, reference, gen_models = prepare_HiSD()
     print("Finished deepfake models initialization!")
-    return data_loader, att_image
+    return data_loader, att_image, id_image

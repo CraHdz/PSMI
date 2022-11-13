@@ -215,6 +215,8 @@ class Generator_Adain_Upsample(nn.Module):
             else:
                 x = [self.to_tensor_normalize(_) for _ in x]
                 x = torch.stack(x, dim=0)
+        else:
+            x = x * 0.5 + 0.5
 
         x = x.to(self.device)
 
